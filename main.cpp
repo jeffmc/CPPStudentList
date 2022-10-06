@@ -66,7 +66,6 @@ void takeCommand(char str[], const int &max) {
 }
 
 int main() {
-
   std::vector<Student> stus = {
       {"Jeff", "McMillan", 395752, (24.0 / 7.0)},
       {"Gerald", "Jones", 12353523, (40.0 / 9.0)},
