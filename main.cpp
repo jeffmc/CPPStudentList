@@ -162,6 +162,8 @@ void takeCommand(char str[], const int &max, std::vector<char*>& tokens) {
   //}
 }
 int main() {
+  srand(time(nullptr));
+
   std::vector<Student*>* stus = new std::vector<Student*>();
   const int buflen = 128;
   std::vector<char*> tokens;
