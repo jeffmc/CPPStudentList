@@ -10,11 +10,16 @@
 
 #define FNAMELEN 10
 #define LNAMELEN 14
+#define SPACING 2
 #define IDLEN 6
-#define GPALEN 5
+#define GPALEN 4
 
 struct Student {
+  enum Vars {
+    FIRSTNAME,LASTNAME,ID,GPA
+  };
   public:
+    static int cmp(const Student::Vars &v, const Student* a, const Student* b);
     char firstName[FNAMELEN + 1],
           lastName[LNAMELEN + 1]; // allow for null terminating char
     int stuid;
@@ -32,15 +37,37 @@ struct Student {
     }
 };
 
+int Student::cmp(const Student::Vars &v, const Student* a, const Student* b) {
+  switch (v) {
+  case FIRSTNAME:
+    return strncmp(a->firstName,b->firstName,FNAMELEN);
+  case LASTNAME:
+    return strncmp(a->lastName,b->lastName,LNAMELEN);    
+  case ID:
+    return a->stuid - b->stuid;
+  case GPA:
+    float c = a->gpa - b->gpa;
+    if (c < 0) return -1;
+    if (c > 0) return 1;
+    return 0;
+  }
+  return 0;
+}
+
 void printUsingWidth(const char cstr[], int width) {
   std::cout.width(width);
   std::cout << cstr;
+}
+void printUsingWidth(const char &c, int width) {
+  std::cout.width(width);
+  std::cout << c;
 }
 void printUsingWidth(const int &val, int width) {
   std::cout.width(width);
   std::cout << val;
 }
-void printUsingWidth(const float &val, int width) {
+void printUsingWidth(const float &val, int width) { 
+  std::cout.precision(width - ((val < 1 && val > -1) ? 2 : 1));
   std::cout.width(width);
   std::cout << val;
 }
@@ -48,11 +75,11 @@ void printUsingWidth(const float &val, int width) {
 void printHeader() {
   std::cout.fill(' ');
   printUsingWidth("ID", IDLEN);
-  std::cout << ' ';
+  printUsingWidth(' ', SPACING);
   printUsingWidth("FIRST", FNAMELEN);
-  std::cout << ' ';
+  printUsingWidth(' ', SPACING);
   printUsingWidth("LAST", LNAMELEN);
-  std::cout << ' ';
+  printUsingWidth(' ', SPACING);
   printUsingWidth("GPA", GPALEN);
   std::cout << ' ' << std::endl;
 }
@@ -60,18 +87,21 @@ void printHeader() {
 void printStudent(const Student* const s) {
   std::cout.fill(' ');
   printUsingWidth(s->stuid, IDLEN);
-  std::cout << ' ';
+  printUsingWidth(' ', SPACING);
   printUsingWidth(s->firstName, FNAMELEN);
-  std::cout << ' ';
+  printUsingWidth(' ', SPACING);
   printUsingWidth(s->lastName, LNAMELEN);
-  std::cout << ' ';
-  std::cout.precision(GPALEN - 1);
+  printUsingWidth(' ', SPACING);
   printUsingWidth(s->gpa, GPALEN);
-  std::cout << ' ' << s << std::endl;
+  std::cout << std::endl;
 }
 
 void printStudents(const std::vector<Student*> &stus) {
   printHeader();
+  if (stus.size() == 0) {
+    std::cout << "  No students." << std::endl;
+    return;
+  }
   for (std::vector<Student*>::const_iterator it = stus.cbegin(); it != stus.cend(); ++it) {
     printStudent(*it);
   }
@@ -108,8 +138,10 @@ bool addStudent(std::vector<Student*> &stus) {
   return true;
 }
 
+#define RANDOMCT_DEFAULT 10
 void addRandoms(std::vector<Student*> &stus, const std::vector<char*> tokens) {
-  int count = atoi(tokens[1]);
+  
+  int count = (tokens.size()>1) ? atoi(tokens[1]) : RANDOMCT_DEFAULT;
   Student* s;
   for (int i=0;i<count;i++) {
     s = new Student(randomFirst(), randomLast(), (rand()%900000) + 100000, (float)(rand()%361)/90.0f);
@@ -129,11 +161,17 @@ void printHelp() {
     "add - create new student" << std::endl <<
     "dbg - print vector stats" << std::endl <<
     "ls - list students" << std::endl <<
-    "rm [ID] - remove student by id # (*, wildcard removes all)" << std::endl <<
-    "rand [count] - add COUNT of randomly generated students" << std::endl;
+    "rm [ID] - remove student by id (*, wildcard removes all)" << std::endl <<
+    "sort [VAR] - sort students by specified variable (first/last/gpa/id) " << std::endl <<
+    "rand [COUNT] - add the specified number of randomly generated students (default: " << RANDOMCT_DEFAULT << ")" << std::endl <<
+    "rev - reverse the order of the student list." << std::endl;
 }
 
 bool removeStudent(std::vector<Student*> &stus, const std::vector<char*> tokens) {
+  if (tokens.size() < 2) {
+    std::cout << "Need to specify student ID!" << std::endl;
+    return false;
+  }
   if (strcmp(tokens[1], "*") == 0) {
     std::cout << "Removing with global wildcard!" << std::endl;
     for (std::vector<Student*>::const_iterator it = stus.cbegin(); it != stus.cend(); ++it) {
@@ -143,8 +181,59 @@ bool removeStudent(std::vector<Student*> &stus, const std::vector<char*> tokens)
     stus.clear();
     return true;
   }
-  std::cout << "[TODO] Command unimplemented!" << std::endl;
+  const int target = atoi(tokens[1]);
+  for (std::vector<Student*>::const_iterator it = stus.cbegin();it!=stus.cend();it++) {
+    if (target == (*it)->stuid) {
+      stus.erase(it);
+      return true;
+    }
+  }
+  std::cout << "Couldn't find student with ID: " << target << std::endl;
   return false;
+}
+
+void vecswap(std::vector<Student*> &stus, const int &a, const int &b) {
+  Student* t = stus[a];
+  stus[a] = stus[b];
+  stus[b] = t;
+}
+void sort(std::vector<Student*> &stus, const std::vector<char*>& tokens) {
+  if (tokens.size() < 2) {
+    std::cout << "Need to specify sort variable!" << std::endl;
+    return;
+  }
+  const char* vtkn = tokens[1];
+  Student::Vars var;
+  if (strcmp(vtkn,"first")==0) {
+    var = Student::FIRSTNAME;
+  } else if (strcmp(vtkn,"last")==0) {
+    var = Student::LASTNAME;
+  } else if (strcmp(vtkn,"gpa")==0) {
+    var = Student::GPA;
+  } else if (strcmp(vtkn,"id")==0) {
+    var = Student::ID;
+  } else {
+    std::cout << "Unknown student variable: " << vtkn << std::endl;
+    return;
+  }
+
+  int n = stus.size();
+  bool swapped = true;
+  while (swapped) {
+    swapped = false;
+    for (int i=1;i<n;i++) {
+      if (Student::cmp(var, stus[i-1], stus[i])>0) {
+        vecswap(stus,i-1,i);
+        swapped = true;
+      }
+    }
+  }
+}
+void vecreverse(std::vector<Student*> &stus) {
+  const int n = stus.size(), hn = n / 2;
+  for (int i=0;i<hn;i++) {
+    vecswap(stus, i, n-1-i);
+  }
 }
 void takeCommand(char str[], const int &max, std::vector<char*>& tokens) {
   std::cout << ">"; 
@@ -198,6 +287,16 @@ int main() {
       addRandoms(*stus, tokens);
       continue;
     }
+    if (strcmp(cmd,"sort") == 0) {
+      sort(*stus, tokens);
+      continue;
+    }
+    if (strcmp(cmd,"rev") == 0) {
+      vecreverse(*stus);
+      continue;
+    }
+
+    std::cout << "Unknown command: " << buf << std::endl;
   }
   for (std::vector<Student*>::const_iterator it = stus->cbegin(); it != stus->cend(); ++it) {
     delete *it;
