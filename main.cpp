@@ -1,12 +1,14 @@
 // Jeff McMillan 10-6-2022 CPP Student List
 
-#include <iostream>
-#include <vector>
-#include <limits>
-#include <cstring>
-#include <cstdlib>
+#include <iostream> // Console input
+#include <vector> // Storage of students
+#include <limits> // For maxes of ints
+#include <cstring> // CString manipulation
+#include <cstdlib> // Random and math
+#include <ctime> // Rand seed
+#include <cstdio> // File in/out
 
-#include "names.h"
+#include "names.h" // Random names
 
 #define FNAMELEN 10
 #define LNAMELEN 14
@@ -138,13 +140,17 @@ bool addStudent(std::vector<Student*> &stus) {
   return true;
 }
 
+inline int absrand3() {
+  return abs(rand() * rand() * rand());
+}
+
 #define RANDOMCT_DEFAULT 10
 void addRandoms(std::vector<Student*> &stus, const std::vector<char*> tokens) {
   
   int count = (tokens.size()>1) ? atoi(tokens[1]) : RANDOMCT_DEFAULT;
   Student* s;
   for (int i=0;i<count;i++) {
-    s = new Student(randomFirst(), randomLast(), (rand()%900000) + 100000, (float)(rand()%361)/90.0f);
+    s = new Student(randomFirst(), randomLast(), (absrand3()%900000)+100000, (float)(rand()%361)/90.0f);
     stus.push_back(s);
   }
 }
@@ -164,7 +170,9 @@ void printHelp() {
     "rm [ID] - remove student by id (*, wildcard removes all)" << std::endl <<
     "sort [VAR] - sort students by specified variable (first/last/gpa/id) " << std::endl <<
     "rand [COUNT] - add the specified number of randomly generated students (default: " << RANDOMCT_DEFAULT << ")" << std::endl <<
-    "rev - reverse the order of the student list." << std::endl;
+    "rev - reverse the order of the student list." << std::endl <<
+    "save [FORMAT: bin/txt] - save the student list to output.txt file." << std::endl <<
+    "load [FILENAME, default: \"output.bin\" ] - load students from savefile, only works on binary files." << std::endl;
 }
 
 bool removeStudent(std::vector<Student*> &stus, const std::vector<char*> tokens) {
@@ -182,8 +190,9 @@ bool removeStudent(std::vector<Student*> &stus, const std::vector<char*> tokens)
     return true;
   }
   const int target = atoi(tokens[1]);
-  for (std::vector<Student*>::const_iterator it = stus.cbegin();it!=stus.cend();it++) {
+  for (std::vector<Student*>::iterator it = stus.begin();it!=stus.end();it++) {
     if (target == (*it)->stuid) {
+      std::cout << "Removed " << (*it)->firstName << ' ' << (*it)->lastName << std::endl;
       stus.erase(it);
       return true;
     }
@@ -192,11 +201,14 @@ bool removeStudent(std::vector<Student*> &stus, const std::vector<char*> tokens)
   return false;
 }
 
+// Swap two indices within the referenced vector.
 void vecswap(std::vector<Student*> &stus, const int &a, const int &b) {
   Student* t = stus[a];
   stus[a] = stus[b];
   stus[b] = t;
 }
+
+// Simple bubble sort implemenation based on https://en.wikipedia.org/wiki/Bubble_sort
 void sort(std::vector<Student*> &stus, const std::vector<char*>& tokens) {
   if (tokens.size() < 2) {
     std::cout << "Need to specify sort variable!" << std::endl;
@@ -229,12 +241,17 @@ void sort(std::vector<Student*> &stus, const std::vector<char*>& tokens) {
     }
   }
 }
+
+// Reverse the contents of referenced vector.
 void vecreverse(std::vector<Student*> &stus) {
   const int n = stus.size(), hn = n / 2;
   for (int i=0;i<hn;i++) {
     vecswap(stus, i, n-1-i);
   }
 }
+
+// Take command input into char buffer from console.
+// Tokenize char buf into vector of char ptrs.
 void takeCommand(char str[], const int &max, std::vector<char*>& tokens) {
   std::cout << ">"; 
   std::cin.get(str, max);
@@ -245,11 +262,72 @@ void takeCommand(char str[], const int &max, std::vector<char*>& tokens) {
   while (tkn != NULL) {
     tokens.push_back(tkn);
     tkn = strtok(NULL,whitespace);
-  };
+  };  
   //for (std::vector<char*>::const_iterator it = tokens.cbegin(); it != tokens.cend(); ++it) {
   //  std::cout << *it << std::endl;
   //}
 }
+void save(std::vector<Student*> &stus, std::vector<char*>& tokens) {
+  if (tokens.size() < 2) {
+    std::cout << "Must specify save format!" << std::endl;
+    return;
+  }
+  FILE* file = nullptr;
+  if (strcmp(tokens[1],"txt") == 0) {
+    file = fopen("output.txt","w");
+    for (std::vector<Student*>::const_iterator it = stus.cbegin(); it != stus.cend(); ++it) { 
+      // TODO: Cannot properly load the txt savefiles.
+      //fputs(s.stuid,file);
+      //fputs(" ",file);
+      fputs((*it)->firstName,file);
+      fputs(" ",file);
+      fputs((*it)->lastName,file);
+      fputs("\n",file);
+      //fputs(" ",file);
+      //fputs(s.gpa,file);
+    }
+  } else if (strcmp(tokens[1],"bin") == 0) {
+    file = fopen("output.bin","w");
+    for (std::vector<Student*>::const_iterator it = stus.cbegin(); it != stus.cend(); ++it) { 
+      fwrite(*it,sizeof(Student),1,file); 
+    } 
+  } else {
+    std::cout << '\"' << tokens[1] << "\" not a valid save format!" << std::endl;
+  }
+  fclose(file);
+}
+
+void load(std::vector<Student*> &stus, std::vector<char*>& tokens) {
+  const char* filename = "output.bin";
+  if (tokens.size() > 1) {
+    filename = tokens[1];
+  }
+  FILE* file = fopen(filename,"r");
+  if (file == nullptr) {
+    std::cout << "Couldn't open file for reading: \"" << filename << "\"" << std::endl;
+    perror(nullptr);
+    return;
+  }
+  while (true) {
+    Student* ptr = new Student();
+    fread(ptr,sizeof(Student),1,file);
+    if (ferror(file) || feof(file)) {
+      if (ferror(file)) perror("Encountered error loading savefile: "); 
+      delete ptr;
+      break;
+    }
+    int flen = strlen(ptr->firstName), llen = strlen(ptr->lastName);
+    if (flen < 1 || flen > FNAMELEN || llen < 1 || llen > LNAMELEN || ptr->stuid < 0 || ptr->gpa < 0) {
+      std::cout << "Read invalid student data!" << std::endl;
+      delete ptr;
+      continue;
+    }
+    stus.push_back(ptr);
+    std::cout << "Added \"" << ptr->firstName << ' ' << ptr->lastName << "\'" << std::endl;
+  }
+  fclose(file);
+}
+
 int main() {
   srand(time(nullptr));
 
@@ -293,6 +371,14 @@ int main() {
     }
     if (strcmp(cmd,"rev") == 0) {
       vecreverse(*stus);
+      continue;
+    }
+    if (strcmp(cmd,"save") == 0) {
+      save(*stus, tokens);
+      continue;
+    }
+    if (strcmp(cmd,"load") == 0) {
+      load(*stus, tokens);
       continue;
     }
 
