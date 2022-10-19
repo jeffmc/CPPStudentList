@@ -1,4 +1,6 @@
-// Jeff McMillan 10-6-2022 CPP Student List
+// Jeff McMillan 10-6-2022 
+// CPP Student List
+// This application allows you to manage a list of students. Operations include adding, removing, and printing a list to the console.
 
 #include <iostream> // Console input
 #include <vector> // Storage of students
@@ -7,6 +9,7 @@
 #include <cstdlib> // Random and math
 #include <ctime> // Rand seed
 #include <cstdio> // File in/out
+#include <cctype> // Char tolower() for command case-insensitive
 
 #include "names.h" // Random names
 
@@ -68,10 +71,11 @@ void printUsingWidth(const int &val, int width) {
   std::cout.width(width);
   std::cout << val;
 }
-void printUsingWidth(const float &val, int width) { 
-  std::cout.precision(width - ((val < 1 && val > -1) ? 2 : 1));
+void printGPAUsingWidth(const float &val, int width) { 
   std::cout.width(width);
-  std::cout << val;
+  char* buf = new char[width+1];
+  snprintf(buf,width+1,"%.2f",val);
+  std::cout << buf;
 }
 
 void printHeader() {
@@ -94,7 +98,7 @@ void printStudent(const Student* const s) {
   printUsingWidth(' ', SPACING);
   printUsingWidth(s->lastName, LNAMELEN);
   printUsingWidth(' ', SPACING);
-  printUsingWidth(s->gpa, GPALEN);
+  printGPAUsingWidth(s->gpa, GPALEN);
   std::cout << std::endl;
 }
 
@@ -160,19 +164,23 @@ void printStats(std::vector<Student*> &stus) {
   std::cout << "Capacity: " << stus.capacity() << std::endl;
 }
 
+typedef const char* const cstr_const;
+
+cstr_const CMD_HELP = "help", CMD_EXIT = "exit", CMD_ADD = "add", CMD_DEBUG = "debug", CMD_LIST = "ls", CMD_REMOVE = "rm", CMD_SORT = "sort", CMD_RANDOM = "random", CMD_REVERSE = "reverse", CMD_SAVE = "save", CMD_LOAD = "load", SORT_VAR_FIRSTNAME = "first", SORT_VAR_LASTNAME = "last", SORT_VAR_GPA = "gpa", SORT_VAR_ID = "id";
+
 void printHelp() {
   std::cout << "Commands:" << std::endl <<
-    "help - this" << std::endl <<
-    "exit - end program" << std::endl <<
-    "add - create new student" << std::endl <<
-    "dbg - print vector stats" << std::endl <<
-    "ls - list students" << std::endl <<
-    "rm [ID] - remove student by id (*, wildcard removes all)" << std::endl <<
-    "sort [VAR] - sort students by specified variable (first/last/gpa/id) " << std::endl <<
-    "rand [COUNT] - add the specified number of randomly generated students (default: " << RANDOMCT_DEFAULT << ")" << std::endl <<
-    "rev - reverse the order of the student list." << std::endl <<
-    "save [FORMAT: bin/txt] - save the student list to output.txt file." << std::endl <<
-    "load [FILENAME, default: \"output.bin\" ] - load students from savefile, only works on binary files." << std::endl;
+    CMD_HELP << " - this" << std::endl <<
+    CMD_EXIT << " - end program" << std::endl <<
+    CMD_ADD << " - create new student" << std::endl <<
+    CMD_DEBUG << " - print vector stats" << std::endl <<
+    CMD_LIST << " - list students" << std::endl <<
+    CMD_REMOVE << " [ID] - remove student by id (*, wildcard removes all)" << std::endl <<
+    CMD_SORT << " [VAR] - sort students by specified variable (" << SORT_VAR_FIRSTNAME << '/' << SORT_VAR_LASTNAME << '/' << SORT_VAR_GPA << '/' << SORT_VAR_ID << ") " << std::endl <<
+    CMD_RANDOM << " [COUNT] - add the specified number of randomly generated students (default: " << RANDOMCT_DEFAULT << ")" << std::endl <<
+    CMD_REVERSE << " - reverse the order of the student list." << std::endl <<
+    CMD_SAVE << " [FORMAT: bin/txt] - save the student list to output.txt file." << std::endl <<
+    CMD_LOAD << " [FILENAME, default: \"output.bin\" ] - load students from savefile, only works on binary files." << std::endl;
 }
 
 bool removeStudent(std::vector<Student*> &stus, const std::vector<char*> tokens) {
@@ -216,13 +224,13 @@ void sort(std::vector<Student*> &stus, const std::vector<char*>& tokens) {
   }
   const char* vtkn = tokens[1];
   Student::Vars var;
-  if (strcmp(vtkn,"first")==0) {
+  if (strcmp(vtkn,SORT_VAR_FIRSTNAME)==0) {
     var = Student::FIRSTNAME;
-  } else if (strcmp(vtkn,"last")==0) {
+  } else if (strcmp(vtkn,SORT_VAR_LASTNAME)==0) {
     var = Student::LASTNAME;
-  } else if (strcmp(vtkn,"gpa")==0) {
+  } else if (strcmp(vtkn,SORT_VAR_GPA)==0) {
     var = Student::GPA;
-  } else if (strcmp(vtkn,"id")==0) {
+  } else if (strcmp(vtkn,SORT_VAR_ID)==0) {
     var = Student::ID;
   } else {
     std::cout << "Unknown student variable: " << vtkn << std::endl;
@@ -231,15 +239,18 @@ void sort(std::vector<Student*> &stus, const std::vector<char*>& tokens) {
 
   int n = stus.size();
   bool swapped = true;
+  int swaps = 0;
   while (swapped) {
     swapped = false;
     for (int i=1;i<n;i++) {
       if (Student::cmp(var, stus[i-1], stus[i])>0) {
         vecswap(stus,i-1,i);
         swapped = true;
+        swaps++;
       }
     }
   }
+  std::cout << "Using " << swaps << " swaps, sorted by: " << vtkn << std::endl;
 }
 
 // Reverse the contents of referenced vector.
@@ -275,17 +286,14 @@ void save(std::vector<Student*> &stus, std::vector<char*>& tokens) {
   FILE* file = nullptr;
   if (strcmp(tokens[1],"txt") == 0) {
     file = fopen("output.txt","w");
+    fputs("ID FIRST LAST GPA\n", file);
+    const int linelimit = 256;
+    char* line = new char[linelimit];
     for (std::vector<Student*>::const_iterator it = stus.cbegin(); it != stus.cend(); ++it) { 
-      // TODO: Cannot properly load the txt savefiles.
-      //fputs(s.stuid,file);
-      //fputs(" ",file);
-      fputs((*it)->firstName,file);
-      fputs(" ",file);
-      fputs((*it)->lastName,file);
-      fputs("\n",file);
-      //fputs(" ",file);
-      //fputs(s.gpa,file);
+      snprintf(line,linelimit,"%i %s %s %.2f\n",(*it)->stuid,(*it)->firstName,(*it)->lastName,(*it)->gpa);
+      fputs(line,file); 
     }
+    delete[] line;
   } else if (strcmp(tokens[1],"bin") == 0) {
     file = fopen("output.bin","w");
     for (std::vector<Student*>::const_iterator it = stus.cbegin(); it != stus.cend(); ++it) { 
@@ -335,49 +343,59 @@ int main() {
   const int buflen = 128;
   std::vector<char*> tokens;
   char buf[buflen];
-  const char* cmd;
+  char* cmd = nullptr;
   printHelp();
   while (true) {
     takeCommand(buf,buflen,tokens);
-    cmd = tokens[0];
-    if (strcmp(cmd,"help") == 0) {
+    if (tokens.size()<1) {
+      cmd = nullptr;
+      continue;
+    }
+    if (cmd != nullptr) delete[] cmd;
+    int cmd_len = strlen(tokens[0]);
+    cmd = new char[cmd_len+1];
+    strcpy(cmd, tokens[0]);
+    for (int i=0;i<cmd_len;i++) {
+      cmd[i] = tolower(cmd[i]); // Set lower
+    }
+    if (strcmp(cmd,CMD_HELP) == 0) {
       printHelp();
       continue;
     }
-    if (strcmp(cmd,"exit") == 0) break;
-    if (strcmp(cmd,"add") == 0) {
+    if (strcmp(cmd,CMD_EXIT) == 0) break;
+    if (strcmp(cmd,CMD_ADD) == 0) {
       addStudent(*stus);
       continue;
     }
-    if (strcmp(cmd,"dbg") == 0) {
+    if (strcmp(cmd,CMD_DEBUG) == 0) {
       printStats(*stus);
       continue;
     }
-    if (strcmp(cmd,"ls") == 0) {
+    if (strcmp(cmd,CMD_LIST) == 0) {
       printStudents(*stus);
       continue;
     }
-    if (strcmp(cmd,"rm") == 0) {
+    if (strcmp(cmd,CMD_REMOVE) == 0) {
       removeStudent(*stus, tokens);
       continue;
     }
-    if (strcmp(cmd,"rand") == 0) {
+    if (strcmp(cmd,CMD_RANDOM) == 0) {
       addRandoms(*stus, tokens);
       continue;
     }
-    if (strcmp(cmd,"sort") == 0) {
+    if (strcmp(cmd,CMD_SORT) == 0) {
       sort(*stus, tokens);
       continue;
     }
-    if (strcmp(cmd,"rev") == 0) {
+    if (strcmp(cmd,CMD_REVERSE) == 0) {
       vecreverse(*stus);
       continue;
     }
-    if (strcmp(cmd,"save") == 0) {
+    if (strcmp(cmd,CMD_SAVE) == 0) {
       save(*stus, tokens);
       continue;
     }
-    if (strcmp(cmd,"load") == 0) {
+    if (strcmp(cmd,CMD_LOAD) == 0) {
       load(*stus, tokens);
       continue;
     }
