@@ -252,6 +252,7 @@ void vecswap(std::vector<Student*> &stus, const int &a, const int &b) {
   stus[b] = t;
 }
 
+// TODO: https://en.wikipedia.org/wiki/Block_sort implement this
 // Simple bubble sort implemenation based on https://en.wikipedia.org/wiki/Bubble_sort
 void sort(std::vector<Student*> &stus, const std::vector<char*>& tokens) {
   if (tokens.size() < 2) {
@@ -303,6 +304,7 @@ void takeCommand(char str[], const int &max, std::vector<char*>& tokens) {
   std::cout << ">"; 
   std::cin.get(str, max);
   resetcin();
+
   tokens.clear();
   const char* const whitespace = " \f\n\r\t\v";
   char* tkn = strtok(str,whitespace);
@@ -386,7 +388,13 @@ int main() {
     if (tokens.size()<1) {
       cmd = nullptr;
       continue;
-    }
+    }/* else {
+      std::cout << (void*)buf << ": Received: \"" << buf << '"' << std::endl;
+      for (std::vector<char*>::const_iterator it = tokens.cbegin(); it != tokens.cend(); ++it) {
+        std::cout << "  " << (void*)*it << " Tokenized: \"" << *it << '"' << std::endl;      
+      }
+      std::cout << std::endl;
+    }*/
     if (cmd != nullptr) delete[] cmd;
     int cmd_len = strlen(tokens[0]);
     cmd = new char[cmd_len+1];
