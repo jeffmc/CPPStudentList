@@ -231,6 +231,7 @@ bool removeStudent(std::vector<Student*> &stus, const std::vector<char*> tokens)
   for (std::vector<Student*>::iterator it = stus.begin();it!=stus.end();) {
     if (target == (*it)->stuid) {
       std::cout << "Removed " << (*it)->firstName << ' ' << (*it)->lastName << std::endl;
+      delete *it;
       it = stus.erase(it);
       removed++;
     } else {
