@@ -10,11 +10,12 @@
 
 #include "names.h" // Random names
 
-#define FNAMELEN 10
-#define LNAMELEN 14
-#define SPACING 2
-#define IDLEN 6
-#define GPALEN 4
+// Student variable column widths / data size limits.
+#define FNAMELEN 10 // Hard limit
+#define LNAMELEN 14 // Hard limit
+#define IDLEN 6 // Preferred print width
+#define GPALEN 4 // Truncated print width
+#define SPACING 2 // For columns
 
 struct Student {
   enum Vars {
@@ -39,6 +40,7 @@ struct Student {
     }
 };
 
+// Student comparison based on given Student::Vars enum, [A-Z] or [least-greatest].
 int Student::cmp(const Student::Vars &v, const Student* a, const Student* b) {
   switch (v) {
   case FIRSTNAME:
@@ -56,6 +58,7 @@ int Student::cmp(const Student::Vars &v, const Student* a, const Student* b) {
   return 0;
 }
 
+// TODO: Templates?
 void printUsingWidth(const char cstr[], int width) {
   std::cout.width(width);
   std::cout << cstr;
@@ -73,7 +76,6 @@ void printUsingWidth(const float &val, int width) {
   std::cout.width(width);
   std::cout << val;
 }
-
 void printHeader() {
   std::cout.fill(' ');
   printUsingWidth("ID", IDLEN);
@@ -85,7 +87,6 @@ void printHeader() {
   printUsingWidth("GPA", GPALEN);
   std::cout << ' ' << std::endl;
 }
-
 void printStudent(const Student* const s) {
   std::cout.fill(' ');
   printUsingWidth(s->stuid, IDLEN);
@@ -94,10 +95,11 @@ void printStudent(const Student* const s) {
   printUsingWidth(' ', SPACING);
   printUsingWidth(s->lastName, LNAMELEN);
   printUsingWidth(' ', SPACING);
-  printUsingWidth(s->gpa, GPALEN);
+  char gpabuf[GPALEN+1] = {};
+  snprintf(gpabuf, GPALEN+1, "%.2f", s->gpa); // safe format print to buffer (always ends with null-terminating char)
+  printUsingWidth(gpabuf, GPALEN);
   std::cout << std::endl;
 }
-
 void printStudents(const std::vector<Student*> &stus) {
   printHeader();
   if (stus.size() == 0) {
@@ -110,32 +112,58 @@ void printStudents(const std::vector<Student*> &stus) {
 
 }
 
-#define resetcin() std::cin.clear(); std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n') // Ignore until the next delimiting char.
+// Macro to ignore until the next delimiting char.
+#define resetcin() std::cin.clear(); std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n') 
+
 bool addStudent(std::vector<Student*> &stus) {
   const int buflen = 128;
   char buf[buflen];
 
   Student* const temp = new Student();
-  
+ 
+  // Prompt for student vars and check validity, if invalid delete temp Student and return false.
   std::cout << "First: ";
   std::cin.get(buf,FNAMELEN+1);
   memcpy(&temp->firstName,buf,FNAMELEN); 
   resetcin();
+  if (strlen(temp->firstName) == 0) {
+    std::cout << "New student's first name cannot be empty!" << std::endl;
+    delete temp;
+    return false;
+  }
+  
   std::cout << "Last: ";
   std::cin.get(buf,LNAMELEN+1);
   memcpy(&temp->lastName,buf,LNAMELEN); 
   resetcin();
+  if (strlen(temp->lastName) == 0) {
+    std::cout << "New student's last name cannot be empty!" << std::endl;
+    delete temp;
+    return false;
+  }
  
   std::cout << "Student ID: ";
   std::cin.get(buf,buflen);
   temp->stuid = atoi(buf); 
   resetcin();
+  if (temp->stuid < 0) {
+    std::cout << "New student's ID cannot be negative!" << std::endl;
+    delete temp;
+    return false;
+  }
 
   std::cout << "GPA: ";
   std::cin.get(buf,buflen);
   temp->gpa = strtof(buf,nullptr); 
-  resetcin();
-  
+  resetcin(); 
+  if (temp->gpa < 0) {
+    std::cout << "New student's GPA cannot be negative!" << std::endl;
+    delete temp;
+    return false;
+  }
+
+  // If made it through validation, add temp to vector.
+  std::cout << "Added \"" << temp->firstName << ' ' << temp->lastName << '\"' << std::endl;
   stus.push_back(temp);
   return true;
 }
@@ -156,8 +184,10 @@ void addRandoms(std::vector<Student*> &stus, const std::vector<char*> tokens) {
 }
 
 void printStats(std::vector<Student*> &stus) {
-  std::cout << "Size: " << stus.size() << std::endl;
-  std::cout << "Capacity: " << stus.capacity() << std::endl;
+  std::cout << "Student size: " << sizeof(Student) << " bytes" << std::endl;
+  std::cout << "Vector stats:" << std::endl;
+  std::cout << "  Size: " << stus.size() << " / " << stus.size()*sizeof(Student) << " bytes" << std::endl;
+  std::cout << "  Capacity (students): " << stus.capacity() << " / " << stus.capacity()*sizeof(Student) << " bytes" << std::endl;
 }
 
 void printHelp() {
@@ -171,10 +201,11 @@ void printHelp() {
     "sort [VAR] - sort students by specified variable (first/last/gpa/id) " << std::endl <<
     "rand [COUNT] - add the specified number of randomly generated students (default: " << RANDOMCT_DEFAULT << ")" << std::endl <<
     "rev - reverse the order of the student list." << std::endl <<
-    "save [FORMAT: bin/txt] - save the student list to output.txt file." << std::endl <<
+    "save [FORMAT: bin/txt] - save the student list to output(.bin/.txt) file." << std::endl <<
     "load [FILENAME, default: \"output.bin\" ] - load students from savefile, only works on binary files." << std::endl;
 }
 
+// Remove any students that match given ID token
 bool removeStudent(std::vector<Student*> &stus, const std::vector<char*> tokens) {
   if (tokens.size() < 2) {
     std::cout << "Need to specify student ID!" << std::endl;
@@ -190,14 +221,21 @@ bool removeStudent(std::vector<Student*> &stus, const std::vector<char*> tokens)
     return true;
   }
   const int target = atoi(tokens[1]);
-  for (std::vector<Student*>::iterator it = stus.begin();it!=stus.end();it++) {
+  int removed = 0;
+  for (std::vector<Student*>::iterator it = stus.begin();it!=stus.end();) {
     if (target == (*it)->stuid) {
       std::cout << "Removed " << (*it)->firstName << ' ' << (*it)->lastName << std::endl;
-      stus.erase(it);
-      return true;
+      it = stus.erase(it);
+      removed++;
+    } else {
+      it++;
     }
   }
-  std::cout << "Couldn't find student with ID: " << target << std::endl;
+  if (removed > 0) { 
+    std::cout << "Removed " << removed << (removed==1?" student.":" students.") << std::endl;
+  } else {
+    std::cout << "Couldn't find student with ID: " << target << std::endl;
+  }
   return false;
 }
 
